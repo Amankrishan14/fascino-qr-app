@@ -4,10 +4,9 @@ import { User, Camera, Link as LinkIcon, Share2, QrCode, Plus, Trash2, ArrowLeft
 
 const Dashboard = () => {
   const [profile, setProfile] = useState({
-    handle: '',
-    headline: '',
-    bio: '',
-    avatarUrl: ''
+    name: '',
+    email: '',
+    bio: ''
   });
   
   const [media, setMedia] = useState<{ url: string; type: 'image' | 'video' }[]>([]);
@@ -71,7 +70,7 @@ const Dashboard = () => {
               <h1 className="text-2xl font-bold text-gray-900">Your Portfolio</h1>
             </div>
             <Link
-              to={`/p/${profile.handle || 'preview'}`}
+              to={`/p/${profile.name.toLowerCase().replace(/\s+/g, '-') || 'preview'}`}
               className="bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700 transition-colors"
             >
               Preview
@@ -91,24 +90,24 @@ const Dashboard = () => {
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Handle</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
                 <input
                   type="text"
-                  value={profile.handle}
-                  onChange={(e) => setProfile({...profile, handle: e.target.value})}
+                  value={profile.name}
+                  onChange={(e) => setProfile({...profile, name: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="your-username"
+                  placeholder="John Doe"
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Headline</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                 <input
-                  type="text"
-                  value={profile.headline}
-                  onChange={(e) => setProfile({...profile, headline: e.target.value})}
+                  type="email"
+                  value={profile.email}
+                  onChange={(e) => setProfile({...profile, email: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Full Stack Developer"
+                  placeholder="john@example.com"
                 />
               </div>
               
@@ -120,17 +119,6 @@ const Dashboard = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   rows={3}
                   placeholder="Tell us about yourself..."
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Avatar URL</label>
-                <input
-                  type="url"
-                  value={profile.avatarUrl}
-                  onChange={(e) => setProfile({...profile, avatarUrl: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="https://example.com/avatar.jpg"
                 />
               </div>
             </div>
@@ -148,7 +136,7 @@ const Dashboard = () => {
                 <QrCode className="w-24 h-24 text-gray-400 mx-auto" />
               </div>
               <p className="text-gray-600 mb-4">
-                Share your portfolio: /p/{profile.handle || 'your-handle'}
+                Share your portfolio: /p/{profile.name.toLowerCase().replace(/\s+/g, '-') || 'your-name'}
               </p>
               <button className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors">
                 Download QR Code
