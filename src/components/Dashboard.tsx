@@ -1,50 +1,399 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { User, Camera, Link as LinkIcon, Share2, QrCode, Plus, Trash2, ArrowLeft } from 'lucide-react';
+import { User, Camera, Link as LinkIcon, Share2, QrCode, Plus, Trash2, ArrowLeft, Loader2, Save, Check, Download } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
+import QRCode from 'qrcode';
+
+interface ProfileData {
+  id: string;
+  handle: string;
+  headline: string;
+  bio: string;
+  avatar_url: string;
+  is_approved: boolean;
+}
+
+interface MediaItem {
+  id?: string;
+  profile_id?: string;
+  type: 'IMAGE' | 'VIDEO';
+  url: string;
+  title: string | null;
+}
+
+interface LinkItem {
+  id?: string;
+  profile_id?: string;
+  label: string;
+  url: string;
+}
+
+interface SocialItem {
+  id?: string;
+  profile_id?: string;
+  platform: 'TWITTER' | 'INSTAGRAM' | 'LINKEDIN' | 'GITHUB' | 'YOUTUBE' | 'FACEBOOK' | 'TIKTOK' | 'OTHER';
+  handle: string;
+  url: string;
+}
 
 const Dashboard = () => {
-  const [profile, setProfile] = useState({
-    name: '',
-    email: '',
-    bio: ''
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [profileId, setProfileId] = useState<string | null>(null);
+  
+  const [profile, setProfile] = useState<ProfileData>({
+    id: '',
+    handle: '',
+    headline: '',
+    bio: '',
+    avatar_url: '',
+    is_approved: false
   });
   
-  const [media, setMedia] = useState<{ url: string; type: 'image' | 'video' }[]>([]);
-  const [links, setLinks] = useState<{ label: string; url: string }[]>([]);
-  const [socials, setSocials] = useState<{ platform: string; handle: string; url: string }[]>([]);
+  const [media, setMedia] = useState<MediaItem[]>([]);
+  const [links, setLinks] = useState<LinkItem[]>([]);
+  const [socials, setSocials] = useState<SocialItem[]>([]);
+  const [qrCode, setQrCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    
+    const fetchUserData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Check if user has a profile
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+        
+        if (profileError && profileError.code !== 'PGRST116') {
+          throw profileError;
+        }
+        
+        if (profileData) {
+          setProfile({
+            id: profileData.id,
+            handle: profileData.handle || '',
+            headline: profileData.headline || '',
+            bio: profileData.bio || '',
+            avatar_url: profileData.avatar_url || '',
+            is_approved: profileData.is_approved
+          });
+          setProfileId(profileData.id);
+          
+          // Generate QR code
+          if (profileData.handle) {
+            const url = `${window.location.origin}/p/${profileData.handle}`;
+            const qrDataUrl = await QRCode.toDataURL(url, {
+              width: 300,
+              margin: 2,
+              color: {
+                dark: '#000000',
+                light: '#ffffff'
+              }
+            });
+            setQrCode(qrDataUrl);
+          }
+          
+          // Fetch media
+          const { data: mediaData } = await supabase
+            .from('media')
+            .select('*')
+            .eq('profile_id', profileData.id);
+          
+          if (mediaData) {
+            setMedia(mediaData);
+          }
+          
+          // Fetch links
+          const { data: linksData } = await supabase
+            .from('links')
+            .select('*')
+            .eq('profile_id', profileData.id);
+          
+          if (linksData) {
+            setLinks(linksData);
+          }
+          
+          // Fetch socials
+          const { data: socialsData } = await supabase
+            .from('socials')
+            .select('*')
+            .eq('profile_id', profileData.id);
+          
+          if (socialsData) {
+            setSocials(socialsData);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching user data:', err);
+        setError('Failed to load your profile data. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchUserData();
+  }, [user]);
+
+  const saveProfile = async () => {
+    if (!user) return;
+    
+    // Prevent rapid successive saves
+    if (saving) return;
+    
+    try {
+      setSaving(true);
+      setSaveSuccess(false);
+      setError(null);
+      
+      // Validate inputs
+      if (!profile.handle || profile.handle.trim() === '') {
+        setError('Handle is required');
+        setSaving(false);
+        return;
+      }
+      
+      if (profile.handle.length < 3) {
+        setError('Handle must be at least 3 characters long');
+        setSaving(false);
+        return;
+      }
+      
+      if (!/^[a-zA-Z0-9_-]+$/.test(profile.handle)) {
+        setError('Handle can only contain letters, numbers, underscores, and hyphens');
+        setSaving(false);
+        return;
+      }
+      
+      if (profile.headline && profile.headline.length > 100) {
+        setError('Headline cannot exceed 100 characters');
+        setSaving(false);
+        return;
+      }
+      
+      if (profile.bio && profile.bio.length > 500) {
+        setError('Bio cannot exceed 500 characters');
+        setSaving(false);
+        return;
+      }
+      
+      // Check if handle is unique (if changed)
+      if (profileId) {
+        const { data: existingProfile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('handle', profile.handle)
+          .neq('id', profileId)
+          .single();
+        
+        if (existingProfile) {
+          setError('This handle is already taken. Please choose another one.');
+          setSaving(false);
+          return;
+        }
+      } else {
+        const { data: existingProfile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('handle', profile.handle)
+          .single();
+        
+        if (existingProfile) {
+          setError('This handle is already taken. Please choose another one.');
+          setSaving(false);
+          return;
+        }
+      }
+      
+      // Create or update profile
+      let profileResult;
+      if (profileId) {
+        // Update existing profile
+        profileResult = await supabase
+          .from('profiles')
+          .update({
+            handle: profile.handle,
+            headline: profile.headline,
+            bio: profile.bio,
+            avatar_url: profile.avatar_url,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', profileId);
+      } else {
+        // Create new profile
+        profileResult = await supabase
+          .from('profiles')
+          .insert({
+            user_id: user.id,
+            handle: profile.handle,
+            headline: profile.headline,
+            bio: profile.bio,
+            avatar_url: profile.avatar_url,
+            is_approved: false
+          })
+          .select();
+        
+        if (profileResult.data && profileResult.data[0]) {
+          setProfileId(profileResult.data[0].id);
+          setProfile({
+            ...profile,
+            id: profileResult.data[0].id,
+            is_approved: profileResult.data[0].is_approved
+          });
+        }
+      }
+      
+      if (profileResult.error) throw profileResult.error;
+      
+      // Generate QR code if needed
+      if (!qrCode && profile.handle) {
+        const url = `${window.location.origin}/p/${profile.handle}`;
+        const qrDataUrl = await QRCode.toDataURL(url, {
+          width: 300,
+          margin: 2,
+          color: {
+            dark: '#000000',
+            light: '#ffffff'
+          }
+        });
+        setQrCode(qrDataUrl);
+      }
+      
+      // Save media, links, and socials if we have a profile ID
+      if (profileId || (profileResult.data && profileResult.data[0])) {
+        const currentProfileId = profileId || (profileResult.data && profileResult.data[0].id);
+        
+        // Handle media
+        for (const item of media) {
+          if (!item.id) {
+            // Create new media item
+            await supabase
+              .from('media')
+              .insert({
+                profile_id: currentProfileId,
+                type: item.type,
+                url: item.url,
+                title: item.title
+              });
+          }
+        }
+        
+        // Handle links
+        for (const item of links) {
+          if (!item.id) {
+            // Create new link
+            await supabase
+              .from('links')
+              .insert({
+                profile_id: currentProfileId,
+                label: item.label,
+                url: item.url
+              });
+          }
+        }
+        
+        // Handle socials
+        for (const item of socials) {
+          if (!item.id) {
+            // Create new social
+            await supabase
+              .from('socials')
+              .insert({
+                profile_id: currentProfileId,
+                platform: item.platform,
+                handle: item.handle,
+                url: item.url
+              });
+          }
+        }
+      }
+      
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      console.error('Error saving profile:', err);
+      // Show more detailed error message
+      if (err instanceof Error) {
+        setError(`Failed to save your profile: ${err.message}`);
+      } else if (typeof err === 'object' && err !== null) {
+        setError(`Failed to save your profile: ${JSON.stringify(err)}`);
+      } else {
+        setError('Failed to save your profile. Please try again.');
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const addLink = () => {
     setLinks([...links, { label: '', url: '' }]);
   };
 
-  const removeLink = (index: number) => {
+  const removeLink = async (index: number) => {
+    const link = links[index];
+    if (link.id) {
+      try {
+        await supabase
+          .from('links')
+          .delete()
+          .eq('id', link.id);
+      } catch (error) {
+        console.error('Error deleting link:', error);
+      }
+    }
     setLinks(links.filter((_, i) => i !== index));
   };
 
   const addSocial = () => {
-    setSocials([...socials, { platform: 'GitHub', handle: '', url: '' }]);
+    setSocials([...socials, { platform: 'GITHUB', handle: '', url: '' }]);
   };
 
-  const removeSocial = (index: number) => {
+  const removeSocial = async (index: number) => {
+    const social = socials[index];
+    if (social.id) {
+      try {
+        await supabase
+          .from('socials')
+          .delete()
+          .eq('id', social.id);
+      } catch (error) {
+        console.error('Error deleting social:', error);
+      }
+    }
     setSocials(socials.filter((_, i) => i !== index));
   };
 
   const addMedia = () => {
-    // Placeholder for media upload
-    const newMedia = { 
+    // Add a placeholder image
+    setMedia([...media, { 
       url: `https://images.pexels.com/photos/3184299/pexels-photo-3184299.jpeg?w=300&h=300&fit=crop`,
-      type: 'image' as const
-    };
-    setMedia([...media, newMedia]);
+      type: 'IMAGE',
+      title: 'Sample Image'
+    }]);
   };
 
-  const addVideo = () => {
-    // Placeholder for video upload
-    const newVideo = { 
-      url: `https://sample-videos.com/zip/10/mp4/SampleVideo_1280x720_1mb.mp4`,
-      type: 'video' as const
-    };
-    setMedia([...media, newVideo]);
+  const removeMedia = async (index: number) => {
+    const item = media[index];
+    if (item.id) {
+      try {
+        await supabase
+          .from('media')
+          .delete()
+          .eq('id', item.id);
+      } catch (error) {
+        console.error('Error deleting media:', error);
+      }
+    }
+    setMedia(media.filter((_, i) => i !== index));
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -52,11 +401,33 @@ const Dashboard = () => {
     if (files) {
       Array.from(files).forEach(file => {
         const url = URL.createObjectURL(file);
-        const type = file.type.startsWith('video/') ? 'video' : 'image';
-        setMedia(prev => [...prev, { url, type }]);
+        const type = file.type.startsWith('video/') ? 'VIDEO' : 'IMAGE';
+        setMedia(prev => [...prev, { url, type, title: file.name }]);
       });
     }
   };
+
+  const downloadQrCode = () => {
+    if (!qrCode || !profile.handle) return;
+    
+    const link = document.createElement('a');
+    link.href = qrCode;
+    link.download = `${profile.handle}-qr-code.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="flex flex-col items-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mb-4"></div>
+          <p className="text-gray-600">Loading your profile...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -69,17 +440,55 @@ const Dashboard = () => {
               </Link>
               <h1 className="text-2xl font-bold text-gray-900">Your Portfolio</h1>
             </div>
+            <div className="flex items-center space-x-3">
+              {profile.handle && (
             <Link
-              to={`/p/${profile.name.toLowerCase().replace(/\s+/g, '-') || 'preview'}`}
+                  to={`/p/${profile.handle}`}
               className="bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700 transition-colors"
             >
               Preview
             </Link>
+              )}
+              <button
+                onClick={saveProfile}
+                disabled={saving}
+                className="bg-green-600 text-white px-4 py-2 rounded-xl hover:bg-green-700 transition-colors flex items-center"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : saveSuccess ? (
+                  <>
+                    <Check className="w-4 h-4 mr-2" />
+                    Saved!
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    Save
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       <div className="max-w-4xl mx-auto px-4 py-8">
+        {error && (
+          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+            {error}
+          </div>
+        )}
+        
+        {!profile.is_approved && profileId && (
+          <div className="mb-6 bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded">
+            Your profile is pending approval. Once approved, it will be publicly visible.
+          </div>
+        )}
+
         <div className="grid lg:grid-cols-2 gap-8">
           {/* Profile Section */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
@@ -90,24 +499,35 @@ const Dashboard = () => {
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Handle <span className="text-red-500">*</span>
+                </label>
+                <div className="flex">
+                  <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">
+                    @
+                  </span>
                 <input
                   type="text"
-                  value={profile.name}
-                  onChange={(e) => setProfile({...profile, name: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="John Doe"
-                />
+                    value={profile.handle}
+                    onChange={(e) => setProfile({...profile, handle: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="johndoe"
+                    required
+                  />
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  This will be your public URL: {window.location.origin}/p/{profile.handle || 'your-handle'}
+                </p>
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Headline</label>
                 <input
-                  type="email"
-                  value={profile.email}
-                  onChange={(e) => setProfile({...profile, email: e.target.value})}
+                  type="text"
+                  value={profile.headline}
+                  onChange={(e) => setProfile({...profile, headline: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="john@example.com"
+                  placeholder="Full Stack Developer"
                 />
               </div>
               
@@ -121,6 +541,17 @@ const Dashboard = () => {
                   placeholder="Tell us about yourself..."
                 />
               </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Avatar URL</label>
+                <input
+                  type="url"
+                  value={profile.avatar_url || ''}
+                  onChange={(e) => setProfile({...profile, avatar_url: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="https://example.com/avatar.jpg"
+                />
+              </div>
             </div>
           </div>
 
@@ -132,15 +563,30 @@ const Dashboard = () => {
             </div>
             
             <div className="text-center">
-              <div className="bg-gray-100 p-8 rounded-xl mb-4 inline-block">
-                <QrCode className="w-24 h-24 text-gray-400 mx-auto" />
+              {qrCode ? (
+                <>
+                  <div className="bg-white p-4 rounded-xl mb-4 inline-block border border-gray-200 shadow-sm">
+                    <img src={qrCode} alt="QR Code" className="w-40 h-40" />
               </div>
               <p className="text-gray-600 mb-4">
-                Share your portfolio: /p/{profile.name.toLowerCase().replace(/\s+/g, '-') || 'your-name'}
-              </p>
-              <button className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors">
+                    Share your portfolio: {window.location.origin}/p/{profile.handle}
+                  </p>
+                  <button 
+                    onClick={downloadQrCode}
+                    className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center mx-auto"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
                 Download QR Code
               </button>
+                </>
+              ) : (
+                <div className="text-center py-8">
+                  <QrCode className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500">
+                    {profile.handle ? 'Save your profile to generate a QR code' : 'Add a handle and save your profile to generate a QR code'}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -178,8 +624,8 @@ const Dashboard = () => {
             
             <div className="grid grid-cols-3 gap-3">
               {media.map((item, index) => (
-                <div key={index} className="relative group">
-                  {item.type === 'video' ? (
+                <div key={item.id || index} className="relative group">
+                  {item.type === 'VIDEO' ? (
                     <div className="relative">
                       <video
                         src={item.url}
@@ -195,12 +641,12 @@ const Dashboard = () => {
                   ) : (
                     <img
                       src={item.url}
-                      alt={`Media ${index + 1}`}
+                      alt={item.title || `Media ${index + 1}`}
                       className="w-full h-20 object-cover rounded-lg"
                     />
                   )}
                   <button
-                    onClick={() => setMedia(media.filter((_, i) => i !== index))}
+                    onClick={() => removeMedia(index)}
                     className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
                   >
                     <Trash2 className="w-3 h-3" />
@@ -239,7 +685,7 @@ const Dashboard = () => {
             
             <div className="space-y-3">
               {links.map((link, index) => (
-                <div key={index} className="flex gap-2 items-center">
+                <div key={link.id || index} className="flex gap-2 items-center">
                   <input
                     type="text"
                     value={link.label}
@@ -270,6 +716,11 @@ const Dashboard = () => {
                   </button>
                 </div>
               ))}
+              {links.length === 0 && (
+                <p className="text-gray-500 text-center py-4">
+                  No links added yet. Click the + button to add a link.
+                </p>
+              )}
             </div>
           </div>
 
@@ -290,21 +741,24 @@ const Dashboard = () => {
             
             <div className="grid gap-3">
               {socials.map((social, index) => (
-                <div key={index} className="flex gap-2 items-center">
+                <div key={social.id || index} className="flex gap-2 items-center">
                   <select
                     value={social.platform}
                     onChange={(e) => {
                       const newSocials = [...socials];
-                      newSocials[index].platform = e.target.value;
+                      newSocials[index].platform = e.target.value as SocialItem['platform'];
                       setSocials(newSocials);
                     }}
                     className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="GitHub">GitHub</option>
-                    <option value="LinkedIn">LinkedIn</option>
-                    <option value="Twitter">Twitter</option>
-                    <option value="Instagram">Instagram</option>
-                    <option value="YouTube">YouTube</option>
+                    <option value="GITHUB">GitHub</option>
+                    <option value="LINKEDIN">LinkedIn</option>
+                    <option value="TWITTER">Twitter</option>
+                    <option value="INSTAGRAM">Instagram</option>
+                    <option value="YOUTUBE">YouTube</option>
+                    <option value="FACEBOOK">Facebook</option>
+                    <option value="TIKTOK">TikTok</option>
+                    <option value="OTHER">Other</option>
                   </select>
                   <input
                     type="text"
@@ -336,6 +790,11 @@ const Dashboard = () => {
                   </button>
                 </div>
               ))}
+              {socials.length === 0 && (
+                <p className="text-gray-500 text-center py-4">
+                  No social profiles added yet. Click the + button to add one.
+                </p>
+              )}
             </div>
           </div>
         </div>

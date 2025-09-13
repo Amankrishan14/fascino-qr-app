@@ -1,36 +1,123 @@
-import React from 'react';
-import { useParams } from 'react-router-dom';
-import { Mail, ExternalLink, Github, Linkedin, Twitter, Instagram, Youtube } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { Mail, ExternalLink, Github, Linkedin, Twitter, Instagram, Youtube, Facebook, Image, Video, Download, ArrowLeft } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import QRCode from 'qrcode';
+
+interface ProfileData {
+  id: string;
+  handle: string;
+  headline: string | null;
+  bio: string | null;
+  avatar_url: string | null;
+  is_approved: boolean;
+  created_at: string;
+}
+
+interface MediaItem {
+  id: string;
+  type: 'IMAGE' | 'VIDEO';
+  url: string;
+  title: string | null;
+}
+
+interface LinkItem {
+  id: string;
+  label: string;
+  url: string;
+}
+
+interface SocialItem {
+  id: string;
+  platform: string;
+  handle: string;
+  url: string;
+}
 
 const PublicPortfolio = () => {
-  const { handle } = useParams();
+  const { handle } = useParams<{ handle: string }>();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState(false);
+  const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [media, setMedia] = useState<MediaItem[]>([]);
+  const [links, setLinks] = useState<LinkItem[]>([]);
+  const [socials, setSocials] = useState<SocialItem[]>([]);
+  const [qrCode, setQrCode] = useState<string | null>(null);
 
-  // Mock data - in a real app, this would come from an API
-  const portfolio = {
-    handle: handle || 'john-doe',
-    name: 'John Doe',
-    headline: 'Full Stack Developer & UI/UX Designer',
-    bio: 'Passionate developer with 5+ years of experience creating beautiful and functional web applications. I love working with React, Node.js, and modern web technologies.',
-    avatar: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?w=400&h=400&fit=crop',
-    media: [
-      'https://images.pexels.com/photos/3184339/pexels-photo-3184339.jpeg?w=400&h=300&fit=crop',
-      'https://images.pexels.com/photos/3184360/pexels-photo-3184360.jpeg?w=400&h=300&fit=crop',
-      'https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg?w=400&h=300&fit=crop',
-      'https://images.pexels.com/photos/3184632/pexels-photo-3184632.jpeg?w=400&h=300&fit=crop',
-      'https://images.pexels.com/photos/3184639/pexels-photo-3184639.jpeg?w=400&h=300&fit=crop',
-      'https://images.pexels.com/photos/3184318/pexels-photo-3184318.jpeg?w=400&h=300&fit=crop'
-    ],
-    links: [
-      { label: 'My Portfolio Website', url: 'https://johndoe.dev' },
-      { label: 'Latest Blog Post', url: 'https://blog.johndoe.dev' },
-      { label: 'Open Source Project', url: 'https://github.com/johndoe/project' }
-    ],
-    socials: [
-      { platform: 'GitHub', handle: 'johndoe', url: 'https://github.com/johndoe' },
-      { platform: 'LinkedIn', handle: 'john-doe', url: 'https://linkedin.com/in/john-doe' },
-      { platform: 'Twitter', handle: '@johndoe', url: 'https://twitter.com/johndoe' }
-    ]
-  };
+  useEffect(() => {
+    const fetchPortfolio = async () => {
+      if (!handle) return;
+      
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Fetch profile
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('handle', handle)
+          .eq('is_approved', true)
+          .single();
+        
+        if (profileError || !profileData) {
+          setNotFound(true);
+          setLoading(false);
+          return;
+        }
+        
+        setProfile(profileData);
+        
+        // Fetch media
+        const { data: mediaData } = await supabase
+          .from('media')
+          .select('*')
+          .eq('profile_id', profileData.id)
+          .order('created_at', { ascending: false });
+        
+        setMedia(mediaData || []);
+        
+        // Fetch links
+        const { data: linksData } = await supabase
+          .from('links')
+          .select('*')
+          .eq('profile_id', profileData.id)
+          .order('created_at', { ascending: false });
+        
+        setLinks(linksData || []);
+        
+        // Fetch socials
+        const { data: socialsData } = await supabase
+          .from('socials')
+          .select('*')
+          .eq('profile_id', profileData.id)
+          .order('created_at', { ascending: false });
+        
+        setSocials(socialsData || []);
+        
+        // Generate QR code
+        const url = `${window.location.origin}/p/${handle}`;
+        const qrDataUrl = await QRCode.toDataURL(url, {
+          width: 300,
+          margin: 2,
+          color: {
+            dark: '#000000',
+            light: '#ffffff'
+          }
+        });
+        
+        setQrCode(qrDataUrl);
+      } catch (err: any) {
+        console.error('Error fetching portfolio:', err);
+        setError('Failed to load portfolio data.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchPortfolio();
+  }, [handle]);
 
   const getSocialIcon = (platform: string) => {
     const className = "w-5 h-5";
@@ -40,9 +127,69 @@ const PublicPortfolio = () => {
       case 'twitter': return <Twitter className={className} />;
       case 'instagram': return <Instagram className={className} />;
       case 'youtube': return <Youtube className={className} />;
+      case 'facebook': return <Facebook className={className} />;
       default: return <ExternalLink className={className} />;
     }
   };
+
+  const getMediaIcon = (type: string) => {
+    const className = "w-5 h-5";
+    return type === 'VIDEO' ? <Video className={className} /> : <Image className={className} />;
+  };
+
+  const downloadQrCode = () => {
+    if (!qrCode || !profile) return;
+    
+    const link = document.createElement('a');
+    link.href = qrCode;
+    link.download = `${profile.handle}-qr-code.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-white to-gray-100 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+      </div>
+    );
+  }
+
+  if (notFound || !profile) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-white to-gray-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8 max-w-md text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Profile Not Found</h1>
+          <p className="text-gray-600 mb-6">
+            This profile doesn't exist or hasn't been approved yet.
+          </p>
+          <Link to="/" className="inline-flex items-center text-indigo-600 hover:text-indigo-800">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Return to Home
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-white to-gray-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8 max-w-md text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Something went wrong</h1>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="inline-flex items-center text-indigo-600 hover:text-indigo-800"
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-white to-gray-100 py-8 px-4">
@@ -50,22 +197,54 @@ const PublicPortfolio = () => {
         {/* Profile Header */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8 mb-8 text-center">
           <div className="mb-6">
-            <img
-              src={portfolio.avatar}
-              alt={portfolio.name}
-              className="w-32 h-32 rounded-full mx-auto mb-4 object-cover shadow-lg"
-            />
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">@{portfolio.handle}</h1>
-            <h2 className="text-xl text-gray-600 mb-4">{portfolio.headline}</h2>
-            <p className="text-gray-700 max-w-2xl mx-auto leading-relaxed">{portfolio.bio}</p>
+            {profile.avatar_url ? (
+              <img
+                src={profile.avatar_url}
+                alt={profile.handle}
+                className="w-32 h-32 rounded-full mx-auto mb-4 object-cover shadow-lg"
+              />
+            ) : (
+              <div className="w-32 h-32 rounded-full mx-auto mb-4 bg-indigo-100 flex items-center justify-center shadow-lg">
+                <span className="text-3xl font-bold text-indigo-500">
+                  {profile.handle.charAt(0).toUpperCase()}
+                </span>
+              </div>
+            )}
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">@{profile.handle}</h1>
+            {profile.headline && (
+              <h2 className="text-xl text-gray-600 mb-4">{profile.headline}</h2>
+            )}
+            {profile.bio && (
+              <p className="text-gray-700 max-w-2xl mx-auto leading-relaxed">{profile.bio}</p>
+            )}
           </div>
 
+          {/* QR Code */}
+          {qrCode && (
+            <div className="mb-6">
+              <div className="flex flex-col items-center">
+                <img 
+                  src={qrCode} 
+                  alt="QR Code" 
+                  className="w-40 h-40 mb-3 border border-gray-200 rounded-lg shadow-sm"
+                />
+                <button
+                  onClick={downloadQrCode}
+                  className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download QR Code
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Social Links */}
-          {portfolio.socials.length > 0 && (
-            <div className="flex justify-center space-x-4 mb-6">
-              {portfolio.socials.map((social, index) => (
+          {socials.length > 0 && (
+            <div className="flex flex-wrap justify-center gap-3 mb-6">
+              {socials.map((social) => (
                 <a
-                  key={index}
+                  key={social.id}
                   href={social.url}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -81,22 +260,42 @@ const PublicPortfolio = () => {
 
         <div className="grid lg:grid-cols-2 gap-8">
           {/* Media Gallery */}
-          {portfolio.media.length > 0 && (
+          {media.length > 0 && (
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
               <h3 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
-                <Mail className="w-5 h-5 mr-2 text-purple-500" />
+                <Image className="w-5 h-5 mr-2 text-purple-500" />
                 Gallery
               </h3>
               
               <div className="grid grid-cols-2 gap-4">
-                {portfolio.media.map((item, index) => (
-                  <div key={index} className="relative group cursor-pointer">
-                    <img
-                      src={item}
-                      alt={`Gallery item ${index + 1}`}
-                      className="w-full h-40 object-cover rounded-xl group-hover:scale-105 transition-transform duration-200"
-                    />
+                {media.map((item) => (
+                  <div key={item.id} className="relative group">
+                    {item.type === 'IMAGE' ? (
+                      <a href={item.url} target="_blank" rel="noopener noreferrer">
+                        <img
+                          src={item.url}
+                          alt={item.title || `Media item`}
+                          className="w-full h-40 object-cover rounded-xl group-hover:scale-105 transition-transform duration-200"
+                        />
+                      </a>
+                    ) : (
+                      <div className="relative w-full h-40 rounded-xl overflow-hidden bg-black">
+                        <a 
+                          href={item.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="absolute inset-0 flex items-center justify-center"
+                        >
+                          <Video className="w-12 h-12 text-white opacity-80" />
+                        </a>
+                      </div>
+                    )}
                     <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 rounded-xl" />
+                    {item.title && (
+                      <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/70 to-transparent text-white text-sm rounded-b-xl">
+                        {item.title}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -104,7 +303,7 @@ const PublicPortfolio = () => {
           )}
 
           {/* Custom Links */}
-          {portfolio.links.length > 0 && (
+          {links.length > 0 && (
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
               <h3 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
                 <ExternalLink className="w-5 h-5 mr-2 text-blue-500" />
@@ -112,9 +311,9 @@ const PublicPortfolio = () => {
               </h3>
               
               <div className="space-y-3">
-                {portfolio.links.map((link, index) => (
+                {links.map((link) => (
                   <a
-                    key={index}
+                    key={link.id}
                     href={link.url}
                     target="_blank"
                     rel="noopener noreferrer"
