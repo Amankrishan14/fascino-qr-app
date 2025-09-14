@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { User, Camera, Link as LinkIcon, Share2, QrCode, Plus, Trash2, ArrowLeft, Loader2, Save, Check, Download } from 'lucide-react';
+import { User, Camera, Link as LinkIcon, Share2, QrCode, Plus, Trash2, ArrowLeft, Loader2, Save, Check, Download, FileText, ExternalLink } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import QRCode from 'qrcode';
@@ -37,6 +37,14 @@ interface SocialItem {
   url: string;
 }
 
+interface PdfItem {
+  id?: string;
+  title: string;
+  file_url: string;
+  file_name: string;
+  file_size?: number;
+}
+
 const Dashboard = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -59,6 +67,7 @@ const Dashboard = () => {
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [socials, setSocials] = useState<SocialItem[]>([]);
+  const [pdfs, setPdfs] = useState<PdfItem[]>([]);
   const [qrCode, setQrCode] = useState<string | null>(null);
 
   useEffect(() => {
@@ -133,6 +142,17 @@ const Dashboard = () => {
           
           if (socialsData) {
             setSocials(socialsData);
+          }
+          
+          // Fetch PDFs
+          const { data: pdfsData } = await supabase
+            .from('pdfs')
+            .select('*')
+            .eq('profile_id', profileData.id)
+            .order('created_at', { ascending: false });
+          
+          if (pdfsData) {
+            setPdfs(pdfsData);
           }
         }
       } catch (err) {
@@ -314,6 +334,22 @@ const Dashboard = () => {
                 platform: item.platform,
                 handle: item.handle,
                 url: item.url
+              });
+          }
+        }
+        
+        // Handle PDFs
+        for (const item of pdfs) {
+          if (!item.id) {
+            // Create new PDF
+            await supabase
+              .from('pdfs')
+              .insert({
+                profile_id: currentProfileId,
+                title: item.title,
+                file_url: item.file_url,
+                file_name: item.file_name,
+                file_size: item.file_size
               });
           }
         }
@@ -506,6 +542,101 @@ const Dashboard = () => {
 
   const removeAvatar = () => {
     setProfile({ ...profile, avatar_url: '' });
+  };
+
+  const handlePdfUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validate file type
+    if (file.type !== 'application/pdf') {
+      alert('Please select a PDF file.');
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File size must be less than 10MB.');
+      return;
+    }
+
+    setUploading(true);
+    
+    try {
+      // Generate unique filename
+      const fileExt = file.name.split('.').pop();
+      const fileName = `pdfs/${user.id}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      
+      // Upload to Supabase Storage
+      const { data, error } = await supabase.storage
+        .from('media')
+        .upload(fileName, file);
+
+      if (error) {
+        console.error('Error uploading PDF:', error);
+        alert(`Failed to upload PDF: ${error.message}`);
+        return;
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('media')
+        .getPublicUrl(fileName);
+
+      // Add to PDFs array
+      setPdfs(prev => [...prev, {
+        title: file.name.split('.')[0], // Use filename without extension as title
+        file_url: publicUrl,
+        file_name: file.name,
+        file_size: file.size
+      }]);
+      
+    } catch (error) {
+      console.error('Error uploading PDF:', error);
+      alert('Failed to upload PDF. Please try again.');
+    } finally {
+      setUploading(false);
+      // Clear the file input
+      if (event.target) {
+        event.target.value = '';
+      }
+    }
+  };
+
+  const removePdf = async (index: number) => {
+    const item = pdfs[index];
+    
+    try {
+      // If it's a database record, delete from database
+      if (item.id) {
+        await supabase
+          .from('pdfs')
+          .delete()
+          .eq('id', item.id);
+      }
+      
+      // If it's a storage file, delete from storage
+      if (item.file_url.includes('storage.googleapis.com') || item.file_url.includes('supabase.co/storage')) {
+        // Extract file path from URL
+        const urlParts = item.file_url.split('/storage/v1/object/public/media/');
+        if (urlParts.length > 1) {
+          const filePath = urlParts[1];
+          await supabase.storage
+            .from('media')
+            .remove([filePath]);
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting PDF:', error);
+    }
+    
+    setPdfs(pdfs.filter((_, i) => i !== index));
+  };
+
+  const updatePdfTitle = (index: number, title: string) => {
+    const updatedPdfs = [...pdfs];
+    updatedPdfs[index].title = title;
+    setPdfs(updatedPdfs);
   };
 
   const removeMedia = async (index: number) => {
@@ -874,6 +1005,99 @@ const Dashboard = () => {
               <p>• Upload images and videos from your device</p>
               <p>• Supported formats: JPG, PNG, GIF, MP4, MOV, AVI</p>
               <p>• Click the + button to add sample content</p>
+            </div>
+          </div>
+
+          {/* PDFs Section */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <FileText className="w-5 h-5 text-red-500 mr-2" />
+                <h2 className="text-lg font-semibold text-gray-900">PDF Documents</h2>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="file"
+                  id="pdf-upload"
+                  accept=".pdf"
+                  onChange={handlePdfUpload}
+                  disabled={uploading}
+                  className="hidden"
+                />
+                <label
+                  htmlFor="pdf-upload"
+                  className={`bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 transition-colors cursor-pointer text-sm font-medium ${
+                    uploading ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                >
+                  {uploading ? 'Uploading...' : 'Upload PDF'}
+                </label>
+              </div>
+            </div>
+            
+            {uploading && (
+              <div className="text-center py-4">
+                <div className="inline-flex items-center text-red-600">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600 mr-2"></div>
+                  Uploading PDF...
+                </div>
+              </div>
+            )}
+            
+            <div className="space-y-3">
+              {pdfs.map((pdf, index) => (
+                <div key={pdf.id || index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <div className="flex-shrink-0">
+                      <FileText className="w-8 h-8 text-red-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <input
+                        type="text"
+                        value={pdf.title}
+                        onChange={(e) => updatePdfTitle(index, e.target.value)}
+                        className="w-full text-sm font-medium text-gray-900 bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-red-500 rounded px-1"
+                        placeholder="PDF Title"
+                      />
+                      <div className="text-xs text-gray-500">
+                        {pdf.file_name} • {(pdf.file_size ? pdf.file_size / 1024 / 1024 : 0).toFixed(1)} MB
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <a
+                      href={pdf.file_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-700 p-1 rounded transition-colors"
+                      title="View PDF"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                    <button
+                      onClick={() => removePdf(index)}
+                      className="text-red-600 hover:text-red-700 p-1 rounded transition-colors"
+                      title="Remove PDF"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              
+              {pdfs.length === 0 && !uploading && (
+                <div className="text-center py-8 text-gray-500">
+                  <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p>No PDF documents uploaded yet</p>
+                  <p className="text-sm">Upload your resume, portfolio, or other documents</p>
+                </div>
+              )}
+            </div>
+            
+            <div className="mt-4 text-xs text-gray-500">
+              <p>• Supported format: PDF only</p>
+              <p>• Maximum file size: 10MB</p>
+              <p>• Click "Upload PDF" to add documents</p>
             </div>
           </div>
 
