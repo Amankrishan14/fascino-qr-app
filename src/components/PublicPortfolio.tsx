@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Mail, ExternalLink, Github, Linkedin, Twitter, Instagram, Youtube, Facebook, Image, Video, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Mail, ExternalLink, Github, Linkedin, Twitter, Instagram, Youtube, Facebook, Image, Video, ArrowLeft, RefreshCw, FileText } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import FascinoLogo from './FascinoLogo';
 
@@ -34,6 +34,14 @@ interface SocialItem {
   url: string;
 }
 
+interface PdfItem {
+  id: string;
+  title: string;
+  file_url: string;
+  file_name: string;
+  file_size?: number;
+}
+
 const PublicPortfolio = () => {
   const { handle } = useParams<{ handle: string }>();
   const [loading, setLoading] = useState(true);
@@ -43,6 +51,7 @@ const PublicPortfolio = () => {
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [socials, setSocials] = useState<SocialItem[]>([]);
+  const [pdfs, setPdfs] = useState<PdfItem[]>([]);
 
   useEffect(() => {
     const fetchPortfolio = async () => {
@@ -94,6 +103,15 @@ const PublicPortfolio = () => {
           .order('created_at', { ascending: false });
         
         setSocials(socialsData || []);
+        
+        // Fetch PDFs
+        const { data: pdfsData } = await supabase
+          .from('pdfs')
+          .select('*')
+          .eq('profile_id', profileData.id)
+          .order('created_at', { ascending: false });
+        
+        setPdfs(pdfsData || []);
       } catch (err: any) {
         console.error('Error fetching portfolio:', err);
         setError('Failed to load portfolio data.');
@@ -281,6 +299,43 @@ const PublicPortfolio = () => {
                         {link.label}
                       </span>
                       <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-blue-600" />
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* PDF Documents */}
+          {pdfs.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+              <h3 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
+                <FileText className="w-5 h-5 mr-2 text-red-500" />
+                Documents
+              </h3>
+              
+              <div className="space-y-3">
+                {pdfs.map((pdf) => (
+                  <a
+                    key={pdf.id}
+                    href={pdf.file_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block bg-gray-50 hover:bg-gray-100 p-4 rounded-xl transition-colors group"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="flex-shrink-0">
+                        <FileText className="w-8 h-8 text-red-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-gray-900 group-hover:text-red-600 truncate">
+                          {pdf.title}
+                        </h4>
+                        <p className="text-sm text-gray-500">
+                          {pdf.file_name} • {(pdf.file_size ? pdf.file_size / 1024 / 1024 : 0).toFixed(1)} MB
+                        </p>
+                      </div>
+                      <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-red-600" />
                     </div>
                   </a>
                 ))}

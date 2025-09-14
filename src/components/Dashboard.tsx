@@ -51,6 +51,7 @@ const Dashboard = () => {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
@@ -560,7 +561,7 @@ const Dashboard = () => {
       return;
     }
 
-    setUploading(true);
+    setUploadingPdf(true);
     
     try {
       // Generate unique filename
@@ -595,7 +596,7 @@ const Dashboard = () => {
       console.error('Error uploading PDF:', error);
       alert('Failed to upload PDF. Please try again.');
     } finally {
-      setUploading(false);
+      setUploadingPdf(false);
       // Clear the file input
       if (event.target) {
         event.target.value = '';
@@ -1021,21 +1022,21 @@ const Dashboard = () => {
                   id="pdf-upload"
                   accept=".pdf"
                   onChange={handlePdfUpload}
-                  disabled={uploading}
+                  disabled={uploadingPdf}
                   className="hidden"
                 />
                 <label
                   htmlFor="pdf-upload"
                   className={`bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 transition-colors cursor-pointer text-sm font-medium ${
-                    uploading ? 'opacity-50 cursor-not-allowed' : ''
+                    uploadingPdf ? 'opacity-50 cursor-not-allowed' : ''
                   }`}
                 >
-                  {uploading ? 'Uploading...' : 'Upload PDF'}
+                  {uploadingPdf ? 'Uploading...' : 'Upload PDF'}
                 </label>
               </div>
             </div>
             
-            {uploading && (
+            {uploadingPdf && (
               <div className="text-center py-4">
                 <div className="inline-flex items-center text-red-600">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600 mr-2"></div>
@@ -1085,7 +1086,7 @@ const Dashboard = () => {
                 </div>
               ))}
               
-              {pdfs.length === 0 && !uploading && (
+              {pdfs.length === 0 && !uploadingPdf && (
                 <div className="text-center py-8 text-gray-500">
                   <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                   <p>No PDF documents uploaded yet</p>
