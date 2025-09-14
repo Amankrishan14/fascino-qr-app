@@ -124,7 +124,7 @@ const PublicPortfolio = () => {
   }, [handle]);
 
   const getSocialIcon = (platform: string) => {
-    const className = "w-5 h-5";
+    const className = "w-6 h-6";
     switch (platform.toLowerCase()) {
       case 'github': return <Github className={className} />;
       case 'linkedin': return <Linkedin className={className} />;
@@ -216,14 +216,14 @@ const PublicPortfolio = () => {
 
           {/* Social Links */}
           {socials.length > 0 && (
-            <div className="flex flex-wrap justify-center gap-3 mb-6">
+            <div className="flex flex-wrap justify-center gap-4 mb-6">
               {socials.map((social) => (
                 <a
                   key={social.id}
                   href={social.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="bg-gray-100 hover:bg-gray-200 p-3 rounded-full transition-colors group"
+                  className="bg-gray-100 hover:bg-gray-200 p-4 rounded-full transition-colors group"
                   title={`${social.platform}: ${social.handle}`}
                 >
                   {getSocialIcon(social.platform)}
@@ -234,37 +234,57 @@ const PublicPortfolio = () => {
         </div>
 
         <div className="grid lg:grid-cols-2 gap-8">
-          {/* Media Gallery */}
-          {media.length > 0 && (
+          {/* Images Gallery */}
+          {media.filter(item => item.type === 'IMAGE').length > 0 && (
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
               <h3 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
                 <Image className="w-5 h-5 mr-2 text-purple-500" />
-                Gallery
+                Photos
               </h3>
               
               <div className="grid grid-cols-2 gap-4">
-                {media.map((item) => (
+                {media.filter(item => item.type === 'IMAGE').map((item) => (
                   <div key={item.id} className="relative group">
-                    {item.type === 'IMAGE' ? (
-                      <a href={item.url} target="_blank" rel="noopener noreferrer">
-                        <img
-                          src={item.url}
-                          alt={item.title || `Media item`}
-                          className="w-full h-40 object-cover rounded-xl group-hover:scale-105 transition-transform duration-200"
-                        />
-                      </a>
-                    ) : (
-                      <div className="relative w-full h-40 rounded-xl overflow-hidden bg-black">
-                        <a 
-                          href={item.url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="absolute inset-0 flex items-center justify-center"
-                        >
-                          <Video className="w-12 h-12 text-white opacity-80" />
-                        </a>
+                    <a href={item.url} target="_blank" rel="noopener noreferrer">
+                      <img
+                        src={item.url}
+                        alt={item.title || `Photo`}
+                        className="w-full h-40 object-cover rounded-xl group-hover:scale-105 transition-transform duration-200"
+                      />
+                    </a>
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 rounded-xl" />
+                    {item.title && (
+                      <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/70 to-transparent text-white text-sm rounded-b-xl">
+                        {item.title}
                       </div>
                     )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Videos Gallery */}
+          {media.filter(item => item.type === 'VIDEO').length > 0 && (
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+              <h3 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
+                <Video className="w-5 h-5 mr-2 text-blue-500" />
+                Videos
+              </h3>
+              
+              <div className="grid grid-cols-2 gap-4">
+                {media.filter(item => item.type === 'VIDEO').map((item) => (
+                  <div key={item.id} className="relative group">
+                    <div className="relative w-full h-40 rounded-xl overflow-hidden bg-black">
+                      <a 
+                        href={item.url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="absolute inset-0 flex items-center justify-center"
+                      >
+                        <Video className="w-12 h-12 text-white opacity-80" />
+                      </a>
+                    </div>
                     <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 rounded-xl" />
                     {item.title && (
                       <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/70 to-transparent text-white text-sm rounded-b-xl">
