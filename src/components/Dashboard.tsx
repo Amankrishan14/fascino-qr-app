@@ -373,12 +373,33 @@ const Dashboard = () => {
   };
 
   const addMedia = () => {
-    // Add a placeholder image
-    setMedia([...media, { 
-      url: `https://images.pexels.com/photos/3184299/pexels-photo-3184299.jpeg?w=300&h=300&fit=crop`,
-      type: 'IMAGE',
-      title: 'Sample Image'
-    }]);
+    const url = prompt('Enter the URL of your image or video:');
+    if (url && url.trim()) {
+      // Determine if it's a video or image based on file extension
+      const isVideo = /\.(mp4|webm|ogg|avi|mov|wmv|flv|mkv)$/i.test(url);
+      setMedia([...media, { 
+        url: url.trim(),
+        type: isVideo ? 'VIDEO' : 'IMAGE',
+        title: ''
+      }]);
+    }
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files) {
+      Array.from(files).forEach(file => {
+        // For now, we'll just show a message to use URLs instead
+        // In a production app, you'd upload to Supabase Storage
+        alert('Please use the "Add Media" button to add images/videos by URL. File upload will be available in a future update.');
+      });
+    }
+  };
+
+  const updateMediaTitle = (index: number, title: string) => {
+    const updatedMedia = [...media];
+    updatedMedia[index].title = title;
+    setMedia(updatedMedia);
   };
 
   const removeMedia = async (index: number) => {
@@ -396,16 +417,6 @@ const Dashboard = () => {
     setMedia(media.filter((_, i) => i !== index));
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (files) {
-      Array.from(files).forEach(file => {
-        const url = URL.createObjectURL(file);
-        const type = file.type.startsWith('video/') ? 'VIDEO' : 'IMAGE';
-        setMedia(prev => [...prev, { url, type, title: file.name }]);
-      });
-    }
-  };
 
   const downloadQrCode = () => {
     if (!qrCode || !profile.handle) return;
@@ -614,27 +625,27 @@ const Dashboard = () => {
                 </label>
                 <button
                   onClick={addMedia}
-                  className="bg-purple-600 text-white p-2 rounded-lg hover:bg-purple-700 transition-colors"
-                  title="Add sample image"
+                  className="bg-purple-600 text-white px-3 py-2 rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+                  title="Add media by URL"
                 >
-                  <Plus className="w-4 h-4" />
+                  Add Media
                 </button>
               </div>
             </div>
             
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {media.map((item, index) => (
-                <div key={item.id || index} className="relative group">
+                <div key={item.id || index} className="relative group bg-gray-50 rounded-lg p-3">
                   {item.type === 'VIDEO' ? (
-                    <div className="relative">
+                    <div className="relative mb-2">
                       <video
                         src={item.url}
-                        className="w-full h-20 object-cover rounded-lg"
+                        className="w-full h-32 object-cover rounded-lg"
                         muted
                       />
                       <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 rounded-lg">
-                        <div className="w-6 h-6 bg-white bg-opacity-80 rounded-full flex items-center justify-center">
-                          <div className="w-0 h-0 border-l-[6px] border-l-gray-800 border-y-[4px] border-y-transparent ml-0.5"></div>
+                        <div className="w-8 h-8 bg-white bg-opacity-80 rounded-full flex items-center justify-center">
+                          <div className="w-0 h-0 border-l-[8px] border-l-gray-800 border-y-[6px] border-y-transparent ml-1"></div>
                         </div>
                       </div>
                     </div>
@@ -642,12 +653,22 @@ const Dashboard = () => {
                     <img
                       src={item.url}
                       alt={item.title || `Media ${index + 1}`}
-                      className="w-full h-20 object-cover rounded-lg"
+                      className="w-full h-32 object-cover rounded-lg mb-2"
                     />
                   )}
+                  
+                  {/* Title input */}
+                  <input
+                    type="text"
+                    value={item.title || ''}
+                    onChange={(e) => updateMediaTitle(index, e.target.value)}
+                    placeholder="Add a title (optional)"
+                    className="w-full text-sm px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  />
+                  
                   <button
                     onClick={() => removeMedia(index)}
-                    className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
                   >
                     <Trash2 className="w-3 h-3" />
                   </button>
