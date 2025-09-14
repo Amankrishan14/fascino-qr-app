@@ -41,6 +41,7 @@ const Dashboard = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
@@ -373,26 +374,72 @@ const Dashboard = () => {
   };
 
   const addMedia = () => {
-    const url = prompt('Enter the URL of your image or video:');
-    if (url && url.trim()) {
-      // Determine if it's a video or image based on file extension
-      const isVideo = /\.(mp4|webm|ogg|avi|mov|wmv|flv|mkv)$/i.test(url);
-      setMedia([...media, { 
-        url: url.trim(),
-        type: isVideo ? 'VIDEO' : 'IMAGE',
-        title: ''
-      }]);
+    // Trigger file input
+    const fileInput = document.getElementById('media-upload') as HTMLInputElement;
+    if (fileInput) {
+      fileInput.click();
     }
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
-    if (files) {
-      Array.from(files).forEach(file => {
-        // For now, we'll just show a message to use URLs instead
-        // In a production app, you'd upload to Supabase Storage
-        alert('Please use the "Add Media" button to add images/videos by URL. File upload will be available in a future update.');
-      });
+    if (!files || !user) return;
+
+    setUploading(true);
+    
+    try {
+      for (const file of Array.from(files)) {
+        // Validate file type
+        const isImage = file.type.startsWith('image/');
+        const isVideo = file.type.startsWith('video/');
+        
+        if (!isImage && !isVideo) {
+          alert(`File ${file.name} is not a supported image or video format.`);
+          continue;
+        }
+
+        // Validate file size (max 10MB)
+        if (file.size > 10 * 1024 * 1024) {
+          alert(`File ${file.name} is too large. Maximum size is 10MB.`);
+          continue;
+        }
+
+        // Generate unique filename
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+        
+        // Upload to Supabase Storage
+        const { data, error } = await supabase.storage
+          .from('media')
+          .upload(fileName, file);
+
+        if (error) {
+          console.error('Error uploading file:', error);
+          alert(`Failed to upload ${file.name}: ${error.message}`);
+          continue;
+        }
+
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('media')
+          .getPublicUrl(fileName);
+
+        // Add to media array
+        setMedia(prev => [...prev, {
+          url: publicUrl,
+          type: isVideo ? 'VIDEO' : 'IMAGE',
+          title: file.name.split('.')[0] // Use filename without extension as title
+        }]);
+      }
+    } catch (error) {
+      console.error('Error uploading files:', error);
+      alert('Failed to upload files. Please try again.');
+    } finally {
+      setUploading(false);
+      // Clear the file input
+      if (event.target) {
+        event.target.value = '';
+      }
     }
   };
 
@@ -404,16 +451,31 @@ const Dashboard = () => {
 
   const removeMedia = async (index: number) => {
     const item = media[index];
-    if (item.id) {
-      try {
+    
+    try {
+      // If it's a database record, delete from database
+      if (item.id) {
         await supabase
           .from('media')
           .delete()
           .eq('id', item.id);
-      } catch (error) {
-        console.error('Error deleting media:', error);
       }
+      
+      // If it's a storage file, delete from storage
+      if (item.url.includes('storage.googleapis.com') || item.url.includes('supabase.co/storage')) {
+        // Extract file path from URL
+        const urlParts = item.url.split('/storage/v1/object/public/media/');
+        if (urlParts.length > 1) {
+          const filePath = urlParts[1];
+          await supabase.storage
+            .from('media')
+            .remove([filePath]);
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting media:', error);
     }
+    
     setMedia(media.filter((_, i) => i !== index));
   };
 
@@ -625,13 +687,23 @@ const Dashboard = () => {
                 </label>
                 <button
                   onClick={addMedia}
-                  className="bg-purple-600 text-white px-3 py-2 rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
-                  title="Add media by URL"
+                  disabled={uploading}
+                  className="bg-purple-600 text-white px-3 py-2 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                  title="Upload images and videos"
                 >
-                  Add Media
+                  {uploading ? 'Uploading...' : 'Add Media'}
                 </button>
               </div>
             </div>
+            
+            {uploading && (
+              <div className="text-center py-4">
+                <div className="inline-flex items-center text-purple-600">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600 mr-2"></div>
+                  Uploading files...
+                </div>
+              </div>
+            )}
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {media.map((item, index) => (
