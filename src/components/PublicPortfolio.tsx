@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Mail, ExternalLink, Github, Linkedin, Twitter, Instagram, Youtube, Facebook, Image, Video, ArrowLeft } from 'lucide-react';
+import { Mail, ExternalLink, Github, Linkedin, Twitter, Instagram, Youtube, Facebook, Image, Video, ArrowLeft, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import FascinoLogo from './FascinoLogo';
 
 interface ProfileData {
   id: string;
@@ -289,8 +290,11 @@ const PublicPortfolio = () => {
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-12 text-gray-500">
-          <p>Powered by Portfolio QR</p>
+        <div className="text-center mt-12">
+          <div className="flex items-center justify-center space-x-2 text-gray-500">
+            <FascinoLogo width={24} height={24} />
+            <span className="text-sm">Fascino Agency</span>
+          </div>
         </div>
       </div>
     </div>
