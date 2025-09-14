@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Mail, ExternalLink, Github, Linkedin, Twitter, Instagram, Youtube, Facebook, Image, Video, Download, ArrowLeft } from 'lucide-react';
+import { Mail, ExternalLink, Github, Linkedin, Twitter, Instagram, Youtube, Facebook, Image, Video, ArrowLeft } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import QRCode from 'qrcode';
 
 interface ProfileData {
   id: string;
@@ -43,7 +42,6 @@ const PublicPortfolio = () => {
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [socials, setSocials] = useState<SocialItem[]>([]);
-  const [qrCode, setQrCode] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchPortfolio = async () => {
@@ -95,19 +93,6 @@ const PublicPortfolio = () => {
           .order('created_at', { ascending: false });
         
         setSocials(socialsData || []);
-        
-        // Generate QR code
-        const url = `${window.location.origin}/p/${handle}`;
-        const qrDataUrl = await QRCode.toDataURL(url, {
-          width: 300,
-          margin: 2,
-          color: {
-            dark: '#000000',
-            light: '#ffffff'
-          }
-        });
-        
-        setQrCode(qrDataUrl);
       } catch (err: any) {
         console.error('Error fetching portfolio:', err);
         setError('Failed to load portfolio data.');
@@ -137,16 +122,6 @@ const PublicPortfolio = () => {
     return type === 'VIDEO' ? <Video className={className} /> : <Image className={className} />;
   };
 
-  const downloadQrCode = () => {
-    if (!qrCode || !profile) return;
-    
-    const link = document.createElement('a');
-    link.href = qrCode;
-    link.download = `${profile.handle}-qr-code.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
 
   if (loading) {
     return (
@@ -219,25 +194,6 @@ const PublicPortfolio = () => {
             )}
           </div>
 
-          {/* QR Code */}
-          {qrCode && (
-            <div className="mb-6">
-              <div className="flex flex-col items-center">
-                <img 
-                  src={qrCode} 
-                  alt="QR Code" 
-                  className="w-40 h-40 mb-3 border border-gray-200 rounded-lg shadow-sm"
-                />
-                <button
-                  onClick={downloadQrCode}
-                  className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Download QR Code
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* Social Links */}
           {socials.length > 0 && (
