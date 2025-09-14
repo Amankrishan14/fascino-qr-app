@@ -42,6 +42,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
@@ -449,6 +450,64 @@ const Dashboard = () => {
     setMedia(updatedMedia);
   };
 
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file.');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size must be less than 5MB.');
+      return;
+    }
+
+    setUploadingAvatar(true);
+    
+    try {
+      // Generate unique filename
+      const fileExt = file.name.split('.').pop();
+      const fileName = `avatars/${user.id}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      
+      // Upload to Supabase Storage
+      const { data, error } = await supabase.storage
+        .from('media')
+        .upload(fileName, file);
+
+      if (error) {
+        console.error('Error uploading avatar:', error);
+        alert(`Failed to upload avatar: ${error.message}`);
+        return;
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('media')
+        .getPublicUrl(fileName);
+
+      // Update profile with new avatar URL
+      setProfile({ ...profile, avatar_url: publicUrl });
+      
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      alert('Failed to upload avatar. Please try again.');
+    } finally {
+      setUploadingAvatar(false);
+      // Clear the file input
+      if (event.target) {
+        event.target.value = '';
+      }
+    }
+  };
+
+  const removeAvatar = () => {
+    setProfile({ ...profile, avatar_url: '' });
+  };
+
   const removeMedia = async (index: number) => {
     const item = media[index];
     
@@ -616,14 +675,71 @@ const Dashboard = () => {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Avatar URL</label>
-                <input
-                  type="url"
-                  value={profile.avatar_url || ''}
-                  onChange={(e) => setProfile({...profile, avatar_url: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="https://example.com/avatar.jpg"
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-2">Profile Photo</label>
+                
+                {/* Avatar Preview */}
+                <div className="flex items-center space-x-4 mb-4">
+                  <div className="flex-shrink-0">
+                    {profile.avatar_url ? (
+                      <img
+                        src={profile.avatar_url}
+                        alt="Profile"
+                        className="w-16 h-16 rounded-full object-cover border-2 border-gray-200"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center border-2 border-gray-200">
+                        <span className="text-gray-500 font-medium text-xl">
+                          {profile.handle ? profile.handle.charAt(0).toUpperCase() : '?'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex space-x-2">
+                      <input
+                        type="file"
+                        id="avatar-upload"
+                        accept="image/*"
+                        onChange={handleAvatarUpload}
+                        disabled={uploadingAvatar}
+                        className="hidden"
+                      />
+                      <label
+                        htmlFor="avatar-upload"
+                        className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors cursor-pointer ${
+                          uploadingAvatar
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                        }`}
+                      >
+                        {uploadingAvatar ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400 mr-2"></div>
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <Camera className="w-4 h-4 mr-2" />
+                            {profile.avatar_url ? 'Change Photo' : 'Upload Photo'}
+                          </>
+                        )}
+                      </label>
+                      
+                      {profile.avatar_url && (
+                        <button
+                          onClick={removeAvatar}
+                          className="inline-flex items-center px-3 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      JPG, PNG, GIF up to 5MB
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
