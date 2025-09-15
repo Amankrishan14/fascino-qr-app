@@ -376,7 +376,7 @@ const PublicPortfolio = () => {
         <div className="text-center mt-12">
           <div className="flex items-center justify-center space-x-2 text-gray-500">
             <FascinoLogo width={24} height={24} />
-            <span className="text-sm">Powered by Fascino Agency</span>
+            <span className="text-sm">Powered by Fascino AI</span>
           </div>
         </div>
       </div>
