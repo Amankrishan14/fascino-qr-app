@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Mail, ExternalLink, Github, Linkedin, Twitter, Instagram, Youtube, Facebook, Image, Video, ArrowLeft, RefreshCw, FileText } from 'lucide-react';
+import { Mail, ExternalLink, Github, Linkedin, Twitter, Instagram, Youtube, Facebook, Image, Video, ArrowLeft, RefreshCw, FileText, MessageCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import FascinoLogo from './FascinoLogo';
 
@@ -132,6 +132,7 @@ const PublicPortfolio = () => {
       case 'instagram': return <Instagram className={className} />;
       case 'youtube': return <Youtube className={className} />;
       case 'facebook': return <Facebook className={className} />;
+      case 'whatsapp': return <MessageCircle className={className} />;
       default: return <ExternalLink className={className} />;
     }
   };
@@ -214,9 +215,16 @@ const PublicPortfolio = () => {
           </div>
 
 
-          {/* Social Links */}
-          {socials.length > 0 && (
-            <div className="flex flex-wrap justify-center gap-4 mb-6">
+        </div>
+
+        {/* Social Links */}
+        {socials.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 mb-8">
+            <h3 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
+              <MessageCircle className="w-5 h-5 mr-2 text-green-500" />
+              Connect With Me
+            </h3>
+            <div className="flex flex-wrap justify-center gap-4">
               {socials.map((social) => (
                 <a
                   key={social.id}
@@ -230,8 +238,8 @@ const PublicPortfolio = () => {
                 </a>
               ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         <div className="grid lg:grid-cols-2 gap-8">
           {/* Images Gallery */}
@@ -368,7 +376,7 @@ const PublicPortfolio = () => {
         <div className="text-center mt-12">
           <div className="flex items-center justify-center space-x-2 text-gray-500">
             <FascinoLogo width={24} height={24} />
-            <span className="text-sm">Fascino Agency</span>
+            <span className="text-sm">Powered by Fascino Agency</span>
           </div>
         </div>
       </div>

@@ -547,7 +547,12 @@ const Dashboard = () => {
 
   const handlePdfUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !user) return;
+    if (!file || !user) {
+      console.log('No file selected or user not authenticated');
+      return;
+    }
+
+    console.log('PDF upload started:', file.name, file.type, file.size);
 
     // Validate file type
     if (file.type !== 'application/pdf') {
@@ -568,6 +573,8 @@ const Dashboard = () => {
       const fileExt = file.name.split('.').pop();
       const fileName = `pdfs/${user.id}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
       
+      console.log('Uploading to path:', fileName);
+      
       // Upload to Supabase Storage
       const { data, error } = await supabase.storage
         .from('media')
@@ -576,21 +583,29 @@ const Dashboard = () => {
       if (error) {
         console.error('Error uploading PDF:', error);
         alert(`Failed to upload PDF: ${error.message}`);
+        setUploadingPdf(false);
         return;
       }
+
+      console.log('PDF uploaded successfully:', data);
 
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('media')
         .getPublicUrl(fileName);
 
+      console.log('Public URL generated:', publicUrl);
+
       // Add to PDFs array
-      setPdfs(prev => [...prev, {
+      const newPdf = {
         title: file.name.split('.')[0], // Use filename without extension as title
         file_url: publicUrl,
         file_name: file.name,
         file_size: file.size
-      }]);
+      };
+      
+      setPdfs(prev => [...prev, newPdf]);
+      console.log('PDF added to state:', newPdf);
       
     } catch (error) {
       console.error('Error uploading PDF:', error);
