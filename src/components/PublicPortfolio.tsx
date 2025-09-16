@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Mail, ExternalLink, Github, Linkedin, Twitter, Instagram, Youtube, Facebook, Image, Video, ArrowLeft, RefreshCw, FileText, MessageCircle } from 'lucide-react';
+import { Mail, ExternalLink, Github, Linkedin, Twitter, Instagram, Youtube, Facebook, Image, Video, ArrowLeft, RefreshCw, FileText, MessageCircle, X, ChevronLeft, ChevronRight, Play, Pause, Volume2, VolumeX } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import FascinoLogo from './FascinoLogo';
 
@@ -52,6 +52,103 @@ const PublicPortfolio = () => {
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [socials, setSocials] = useState<SocialItem[]>([]);
   const [pdfs, setPdfs] = useState<PdfItem[]>([]);
+  
+  // Modal states
+  const [selectedImage, setSelectedImage] = useState<MediaItem | null>(null);
+  const [selectedVideo, setSelectedVideo] = useState<MediaItem | null>(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const [isVideoMuted, setIsVideoMuted] = useState(true);
+
+  // Helper functions for modals
+  const openImageModal = (image: MediaItem, index: number) => {
+    setSelectedImage(image);
+    setCurrentImageIndex(index);
+  };
+
+  const openVideoModal = (video: MediaItem, index: number) => {
+    setSelectedVideo(video);
+    setCurrentVideoIndex(index);
+    setIsVideoPlaying(false);
+  };
+
+  const closeImageModal = () => {
+    setSelectedImage(null);
+    setCurrentImageIndex(0);
+  };
+
+  const closeVideoModal = () => {
+    setSelectedVideo(null);
+    setCurrentVideoIndex(0);
+    setIsVideoPlaying(false);
+  };
+
+  const navigateImage = (direction: 'prev' | 'next') => {
+    const images = media.filter(item => item.type === 'IMAGE');
+    if (direction === 'prev') {
+      const newIndex = currentImageIndex > 0 ? currentImageIndex - 1 : images.length - 1;
+      setCurrentImageIndex(newIndex);
+      setSelectedImage(images[newIndex]);
+    } else {
+      const newIndex = currentImageIndex < images.length - 1 ? currentImageIndex + 1 : 0;
+      setCurrentImageIndex(newIndex);
+      setSelectedImage(images[newIndex]);
+    }
+  };
+
+  const navigateVideo = (direction: 'prev' | 'next') => {
+    const videos = media.filter(item => item.type === 'VIDEO');
+    if (direction === 'prev') {
+      const newIndex = currentVideoIndex > 0 ? currentVideoIndex - 1 : videos.length - 1;
+      setCurrentVideoIndex(newIndex);
+      setSelectedVideo(videos[newIndex]);
+    } else {
+      const newIndex = currentVideoIndex < videos.length - 1 ? currentVideoIndex + 1 : 0;
+      setCurrentVideoIndex(newIndex);
+      setSelectedVideo(videos[newIndex]);
+    }
+  };
+
+  const toggleVideoPlay = () => {
+    setIsVideoPlaying(!isVideoPlaying);
+  };
+
+  const toggleVideoMute = () => {
+    setIsVideoMuted(!isVideoMuted);
+  };
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (selectedImage) {
+        if (e.key === 'Escape') {
+          closeImageModal();
+        } else if (e.key === 'ArrowLeft') {
+          navigateImage('prev');
+        } else if (e.key === 'ArrowRight') {
+          navigateImage('next');
+        }
+      }
+      if (selectedVideo) {
+        if (e.key === 'Escape') {
+          closeVideoModal();
+        } else if (e.key === 'ArrowLeft') {
+          navigateVideo('prev');
+        } else if (e.key === 'ArrowRight') {
+          navigateVideo('next');
+        } else if (e.key === ' ') {
+          e.preventDefault();
+          toggleVideoPlay();
+        }
+      }
+    };
+
+    if (selectedImage || selectedVideo) {
+      document.addEventListener('keydown', handleKeyPress);
+      return () => document.removeEventListener('keydown', handleKeyPress);
+    }
+  }, [selectedImage, selectedVideo, currentImageIndex, currentVideoIndex]);
 
   useEffect(() => {
     const fetchPortfolio = async () => {
@@ -251,21 +348,24 @@ const PublicPortfolio = () => {
               </h3>
               
               <div className="grid grid-cols-2 gap-4">
-                {media.filter(item => item.type === 'IMAGE').map((item) => (
-                  <div key={item.id} className="relative group">
-                    <a href={item.url} target="_blank" rel="noopener noreferrer">
-                      <img
-                        src={item.url}
-                        alt={item.title || `Photo`}
-                        className="w-full h-40 object-cover rounded-xl group-hover:scale-105 transition-transform duration-200"
-                      />
-                    </a>
+                {media.filter(item => item.type === 'IMAGE').map((item, index) => (
+                  <div key={item.id} className="relative group cursor-pointer" onClick={() => openImageModal(item, index)}>
+                    <img
+                      src={item.url}
+                      alt={item.title || `Photo`}
+                      className="w-full h-40 object-cover rounded-xl group-hover:scale-105 transition-transform duration-200"
+                    />
                     <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 rounded-xl" />
                     {item.title && (
                       <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/70 to-transparent text-white text-sm rounded-b-xl">
                         {item.title}
                       </div>
                     )}
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      <div className="bg-white/20 backdrop-blur-sm rounded-full p-2">
+                        <Image className="w-6 h-6 text-white" />
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -281,17 +381,14 @@ const PublicPortfolio = () => {
               </h3>
               
               <div className="grid grid-cols-2 gap-4">
-                {media.filter(item => item.type === 'VIDEO').map((item) => (
-                  <div key={item.id} className="relative group">
+                {media.filter(item => item.type === 'VIDEO').map((item, index) => (
+                  <div key={item.id} className="relative group cursor-pointer" onClick={() => openVideoModal(item, index)}>
                     <div className="relative w-full h-40 rounded-xl overflow-hidden bg-black">
-                      <a 
-                        href={item.url} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="absolute inset-0 flex items-center justify-center"
-                      >
-                        <Video className="w-12 h-12 text-white opacity-80" />
-                      </a>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="bg-white/20 backdrop-blur-sm rounded-full p-3">
+                          <Play className="w-8 h-8 text-white" />
+                        </div>
+                      </div>
                     </div>
                     <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 rounded-xl" />
                     {item.title && (
@@ -380,6 +477,125 @@ const PublicPortfolio = () => {
           </div>
         </div>
       </div>
+
+      {/* Image Modal */}
+      {selectedImage && (
+        <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4">
+          <div className="relative max-w-4xl max-h-full">
+            <button
+              onClick={closeImageModal}
+              className="absolute top-4 right-4 z-10 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            
+            {media.filter(item => item.type === 'IMAGE').length > 1 && (
+              <>
+                <button
+                  onClick={() => navigateImage('prev')}
+                  className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors"
+                >
+                  <ChevronLeft className="w-6 h-6" />
+                </button>
+                <button
+                  onClick={() => navigateImage('next')}
+                  className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors"
+                >
+                  <ChevronRight className="w-6 h-6" />
+                </button>
+              </>
+            )}
+            
+            <img
+              src={selectedImage.url}
+              alt={selectedImage.title || 'Photo'}
+              className="max-w-full max-h-full object-contain rounded-lg"
+            />
+            
+            {selectedImage.title && (
+              <div className="absolute bottom-4 left-4 right-4 bg-black/70 text-white p-3 rounded-lg">
+                <p className="text-sm">{selectedImage.title}</p>
+              </div>
+            )}
+            
+            {media.filter(item => item.type === 'IMAGE').length > 1 && (
+              <div className="absolute bottom-4 right-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
+                {currentImageIndex + 1} / {media.filter(item => item.type === 'IMAGE').length}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Video Modal */}
+      {selectedVideo && (
+        <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4">
+          <div className="relative max-w-4xl max-h-full w-full">
+            <button
+              onClick={closeVideoModal}
+              className="absolute top-4 right-4 z-10 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            
+            {media.filter(item => item.type === 'VIDEO').length > 1 && (
+              <>
+                <button
+                  onClick={() => navigateVideo('prev')}
+                  className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors"
+                >
+                  <ChevronLeft className="w-6 h-6" />
+                </button>
+                <button
+                  onClick={() => navigateVideo('next')}
+                  className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors"
+                >
+                  <ChevronRight className="w-6 h-6" />
+                </button>
+              </>
+            )}
+            
+            <div className="relative w-full" style={{ aspectRatio: '16/9' }}>
+              <video
+                src={selectedVideo.url}
+                controls
+                autoPlay={isVideoPlaying}
+                muted={isVideoMuted}
+                className="w-full h-full object-contain rounded-lg"
+                onPlay={() => setIsVideoPlaying(true)}
+                onPause={() => setIsVideoPlaying(false)}
+              />
+              
+              <div className="absolute bottom-4 left-4 flex space-x-2">
+                <button
+                  onClick={toggleVideoPlay}
+                  className="bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors"
+                >
+                  {isVideoPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+                </button>
+                <button
+                  onClick={toggleVideoMute}
+                  className="bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors"
+                >
+                  {isVideoMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
+            
+            {selectedVideo.title && (
+              <div className="absolute bottom-4 left-4 right-4 bg-black/70 text-white p-3 rounded-lg">
+                <p className="text-sm">{selectedVideo.title}</p>
+              </div>
+            )}
+            
+            {media.filter(item => item.type === 'VIDEO').length > 1 && (
+              <div className="absolute bottom-4 right-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
+                {currentVideoIndex + 1} / {media.filter(item => item.type === 'VIDEO').length}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
