@@ -59,7 +59,7 @@ const PublicPortfolio = () => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
-  const [isVideoMuted, setIsVideoMuted] = useState(true);
+  const [isVideoMuted, setIsVideoMuted] = useState(false);
 
   // Helper functions for modals
   const openImageModal = (image: MediaItem, index: number) => {
@@ -115,7 +115,14 @@ const PublicPortfolio = () => {
   };
 
   const toggleVideoMute = () => {
-    setIsVideoMuted(!isVideoMuted);
+    const newMutedState = !isVideoMuted;
+    setIsVideoMuted(newMutedState);
+    
+    // Also update the video element directly if it exists
+    const videoElement = document.querySelector('video');
+    if (videoElement) {
+      videoElement.muted = newMutedState;
+    }
   };
 
   // Keyboard navigation
@@ -564,18 +571,25 @@ const PublicPortfolio = () => {
                 className="w-full h-full object-contain rounded-lg"
                 onPlay={() => setIsVideoPlaying(true)}
                 onPause={() => setIsVideoPlaying(false)}
+                onLoadedMetadata={(e) => {
+                  // Ensure the video element reflects the current muted state
+                  const video = e.target as HTMLVideoElement;
+                  video.muted = isVideoMuted;
+                }}
               />
               
               <div className="absolute bottom-4 left-4 flex space-x-2">
                 <button
                   onClick={toggleVideoPlay}
                   className="bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors"
+                  title={isVideoPlaying ? "Pause" : "Play"}
                 >
                   {isVideoPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
                 </button>
                 <button
                   onClick={toggleVideoMute}
-                  className="bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors"
+                  className={`bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors ${isVideoMuted ? 'bg-red-500/50' : 'bg-green-500/50'}`}
+                  title={isVideoMuted ? "Unmute" : "Mute"}
                 >
                   {isVideoMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
                 </button>
